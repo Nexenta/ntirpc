@@ -64,6 +64,16 @@
 
 #include "rpc_com.h"
 
+#ifdef USE_JE_MALLOC
+#include <jemalloc/jemalloc.h>
+#else
+#define je_free		free
+#define je_aligned_alloc	aligned_alloc
+#define je_malloc	malloc
+#define je_calloc	calloc
+#define je_realloc	realloc
+#endif
+
 void
 thr_keyfree(void *k)
 {
@@ -79,13 +89,13 @@ tirpc_thread_name(const char *p)
 static void
 tirpc_free(void *p, size_t unused)
 {
-	free(p);
+	je_free(p);
 }
 
 static void *
 tirpc_malloc(size_t size, const char *file, int line, const char *function)
 {
-	void *r = malloc(size);
+	void *r = je_malloc(size);
 
 	assert(r != NULL);
 	return r;
@@ -98,9 +108,9 @@ tirpc_aligned(size_t alignment, size_t size, const char *file, int line,
 	void *r;
 
 #if defined(_ISOC11_SOURCE)
-	r = aligned_alloc(alignment, size);
+	r = je_aligned_alloc(alignment, size);
 #else
-	(void) posix_memalign(&r, alignment, size);
+	(void) je_posix_memalign(&r, alignment, size);
 #endif
 	assert(r != NULL);
 	return r;
@@ -110,7 +120,7 @@ static void *
 tirpc_calloc(size_t count, size_t size, const char *file, int line,
 	     const char *function)
 {
-	void *r = calloc(count, size);
+	void *r = je_calloc(count, size);
 
 	assert(r != NULL);
 	return r;
@@ -120,7 +130,7 @@ static void *
 tirpc_realloc(void *p, size_t size, const char *file, int line,
 	      const char *function)
 {
-	void *r = realloc(p, size);
+	void *r = je_realloc(p, size);
 
 	assert(r != NULL);
 	return r;
@@ -361,7 +371,7 @@ __rpc_getconfip(const char *nettype)
 	if (vsock_key == -1) {
 		mutex_lock(&tsd_lock);
 		if (vsock_key == -1)
-			thr_keycreate(&vsock_key, free);
+			thr_keycreate(&vsock_key, je_free);
 		mutex_unlock(&tsd_lock);
 	}
 	netid_vsock = (char *)thr_getspecific(vsock_key);
